@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Prestige in Cesium · External assets</title>
+    <script>
+      window.CESIUM_BASE_URL = "/cesium/";
+    </script>
+    <script src="/cesium/Cesium.js"></script>
+    <link rel="stylesheet" href="/cesium/Widgets/widgets.css" />
+    <style>
+      html,
+      body,
+      #cesiumContainer {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        font:
+          14px system-ui,
+          sans-serif;
+      }
+      #panel {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        width: 240px;
+        max-height: calc(100% - 100px);
+        overflow-y: auto;
+        color: #eff4ff;
+        background: #112035eb;
+        padding: 16px;
+        border: 1px solid #758da744;
+        border-radius: 12px;
+        box-shadow: 0 8px 28px #0004;
+      }
+      h1 {
+        font-size: 23px;
+        line-height: 1.15;
+        margin: 0 0 8px;
+        font-weight: 620;
+        letter-spacing: -0.6px;
+      }
+      .subtitle {
+        color: #9dbbdc;
+        font-size: 13px;
+        margin-bottom: 18px;
+      }
+      .buttons {
+        display: flex;
+        gap: 5px;
+        margin: 12px 0 16px;
+      }
+      button {
+        flex: 1;
+        padding: 8px 5px;
+        cursor: pointer;
+        border: 1px solid #536b85;
+        border-radius: 5px;
+        background: #1c354e;
+        color: white;
+        font: inherit;
+        font-size: 12px;
+      }
+      button:hover {
+        background: #30516e;
+      }
+      button[aria-pressed="true"] {
+        background: #306bba;
+        border-color: #77a7e0;
+      }
+      #status {
+        color: #96d4b2;
+        font-size: 12px;
+        min-height: 17px;
+      }
+      #metrics {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 5px;
+        margin: 12px 0;
+        color: #a7bdd6;
+        font-size: 12px;
+      }
+      #metrics strong {
+        color: #eff4ff;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        color: #b6c9df;
+        font-size: 12px;
+        margin-top: 10px;
+      }
+      #trim {
+        flex: none;
+        margin: 12px 0 0;
+        padding: 6px 12px;
+      }
+      .lighting {
+        border-top: 1px solid #758da744;
+        margin-top: 14px;
+        padding-top: 4px;
+      }
+      .lighting input[type="range"] {
+        width: 110px;
+        margin-left: auto;
+      }
+      .lighting output {
+        min-width: 25px;
+        text-align: right;
+        color: #eff4ff;
+      }
+      #lighting-status {
+        color: #96d4b2;
+        font-size: 11px;
+        margin: 9px 0 0;
+      }
+      #render-quality {
+        margin-left: auto;
+        padding: 4px;
+        color: white;
+        background: #1c354e;
+        border: 1px solid #536b85;
+        border-radius: 4px;
+      }
+      #aa-status {
+        color: #96d4b2;
+        font-size: 11px;
+        margin-top: 7px;
+      }
+      #errors {
+        color: #ffa4a4;
+        font-size: 11px;
+        max-width: 280px;
+        max-height: 100px;
+        overflow: auto;
+      }
+      #hint {
+        position: absolute;
+        right: 20px;
+        bottom: 30px;
+        color: #d4e0ec;
+        background: #112035b8;
+        border-radius: 5px;
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+      #restore-controls {
+        display: none;
+        position: absolute;
+        right: 16px;
+        top: 16px;
+        background: #11203599;
+      }
+      #shot-caption {
+        display: none;
+        position: absolute;
+        left: 24px;
+        top: 22px;
+        color: white;
+        text-shadow: 0 2px 8px #000;
+        font-size: 22px;
+        font-weight: 600;
+      }
+      #shot-caption small {
+        display: block;
+        font-size: 13px;
+        font-weight: 400;
+        margin-top: 5px;
+      }
+      body.presentation #panel,
+      body.presentation #hint {
+        display: none;
+      }
+      body.presentation #restore-controls,
+      body.presentation #shot-caption {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="cesiumContainer"></div>
+    <aside id="panel">
+      <h1>Prestige in Cesium</h1>
+      <div class="subtitle">glTF 2.1 external assets · 3D Tiles</div>
+      <div id="status" role="status">Loading tiles…</div>
+      <div class="buttons">
+        <button id="overview" aria-pressed="true">Overview</button
+        ><button id="detail" aria-pressed="false">Detail</button
+        ><button id="neighbor" aria-pressed="false">Next tile</button>
+      </div>
+      <div class="buttons">
+        <button id="skyline">Skyline</button><button id="pnc">PNC Park</button
+        ><button id="steelers">Steelers stadium</button>
+      </div>
+      <div id="metrics"></div>
+      <label class="row"
+        >Render quality<select id="render-quality">
+          <option value="standard">Standard</option>
+          <option value="smooth" selected>Smooth</option>
+          <option value="sharp">Extra sharp</option>
+        </select></label
+      >
+      <div id="aa-status" role="status"></div>
+      <div class="lighting">
+        <label class="row"
+          ><input id="sunlight" type="checkbox" checked />Use the visible
+          sun</label
+        >
+        <label class="row"
+          >Sun time (EDT)<input
+            id="sun-time"
+            type="range"
+            min="7.5"
+            max="18.5"
+            step="0.05"
+            value="8"
+          /><output id="time-value">8:00</output></label
+        >
+        <label class="row"
+          ><input id="shadows" type="checkbox" checked />Cast shadows</label
+        >
+        <label class="row"
+          >PBR environment<input
+            id="environment"
+            type="range"
+            min="0.05"
+            max="1"
+            step="0.05"
+            value="0.65"
+          /><output id="environment-value">0.65</output></label
+        >
+        <label class="row"
+          >Key light<input
+            id="light-intensity"
+            type="range"
+            min="0"
+            max="6"
+            step="0.1"
+            value="3"
+          /><output id="light-value">3.0</output></label
+        >
+        <label class="row"
+          >Light angle<input
+            id="light-angle"
+            type="range"
+            min="0"
+            max="360"
+            step="5"
+            value="315"
+          /><output id="angle-value">315°</output></label
+        >
+        <div id="lighting-status" role="status">
+          Loading reflection environment…
+        </div>
+      </div>
+      <label class="row"
+        ><input id="bounds" type="checkbox" />Show tile bounds</label
+      >
+      <button id="trim">Release unused tiles</button>
+      <button id="clean-view">Clean view for screenshot</button>
+      <div id="errors"></div>
+    </aside>
+    <div id="hint">Drag to move · Scroll to zoom</div>
+    <div id="shot-caption">
+      Pittsburgh skyline<small>Cesium · glTF external assets · Sunrise</small>
+    </div>
+    <button id="restore-controls">Show controls</button>
+    <script type="module">
+      /* global Cesium */
+      const C = Cesium;
+      const previewOptions = new URLSearchParams(location.search);
+      if (previewOptions.has("sunTime")) {
+        document.getElementById("sun-time").value =
+          previewOptions.get("sunTime");
+      }
+      if (previewOptions.has("shadows")) {
+        document.getElementById("shadows").checked =
+          previewOptions.get("shadows") !== "false";
+      }
+      const imagery = C.ImageryLayer.fromProviderAsync(
+        C.ArcGisMapServerImageryProvider.fromUrl(
+          "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer",
+        ),
+      );
+      const viewer = new C.Viewer("cesiumContainer", {
+        baseLayer: imagery,
+        baseLayerPicker: false,
+        geocoder: false,
+        animation: false,
+        timeline: false,
+        homeButton: false,
+        navigationHelpButton: false,
+        sceneModePicker: false,
+        fullscreenButton: false,
+        selectionIndicator: false,
+        infoBox: false,
+        skyBox: false,
+        shadows: document.getElementById("shadows").checked,
+        contextOptions: {
+          webgl: { antialias: true, preserveDrawingBuffer: true },
+        },
+        terrain: C.Terrain.fromWorldTerrain({ requestVertexNormals: true }),
+      });
+      imagery.readyEvent.addEventListener((provider) => {
+        for (const credit of [
+          provider.credit,
+          ...(provider.getTileCredits(0, 0, 0) ?? []),
+        ]) {
+          if (credit) {
+            viewer.creditDisplay.addStaticCredit(
+              new C.Credit(credit.html, true),
+            );
+          }
+        }
+      });
+      viewer.scene.globe.baseColor = C.Color.fromCssColorString("#a3b1a2");
+      viewer.scene.globe.enableLighting = true;
+      viewer.scene.globe.dynamicAtmosphereLighting = true;
+      viewer.scene.globe.dynamicAtmosphereLightingFromSun = true;
+      viewer.scene.skyAtmosphere.atmosphereLightIntensity = 20;
+      viewer.scene.skyAtmosphere.atmosphereMieCoefficient = new C.Cartesian3(
+        2e-6,
+        2e-6,
+        2e-6,
+      );
+      viewer.scene.skyAtmosphere.perFragmentAtmosphere = true;
+      viewer.scene.sun = new C.Sun();
+      viewer.scene.sun.glowFactor = 0.3;
+      viewer.scene.sunBloom = false;
+      viewer.scene.globe.shadows = C.ShadowMode.RECEIVE_ONLY;
+      viewer.shadowMap.maximumDistance = 4000;
+      viewer.shadowMap.size = 2048;
+      viewer.shadowMap.softShadows = true;
+      viewer.shadowMap.fadingEnabled = false;
+      viewer.shadowMap.darkness = 0.3;
+      viewer.scene.backgroundColor = C.Color.fromCssColorString("#a4bbd0");
+      viewer.scene.fog.enabled = true;
+      viewer.scene.fog.density = 0.0001;
+      viewer.scene.atmosphere.dynamicLighting =
+        C.DynamicAtmosphereLightingType.SUNLIGHT;
+      viewer.scene.highDynamicRange = true;
+      viewer.scene.postProcessStages.tonemapper = C.Tonemapper.PBR_NEUTRAL;
+      viewer.scene.postProcessStages.exposure = 1.2;
+      const renderQuality = {
+        standard: { samples: 4, fxaa: false, scale: 1 },
+        smooth: { samples: 8, fxaa: true, scale: 1.5 },
+        sharp: { samples: 8, fxaa: true, scale: 2 },
+      };
+      function updateRenderQuality() {
+        const quality =
+          renderQuality[document.getElementById("render-quality").value];
+        // The public setter clamps the requested MSAA rate to the GPU limit.
+        viewer.scene.msaaSamples = viewer.scene.msaaSupported
+          ? quality.samples
+          : 1;
+        viewer.scene.postProcessStages.fxaa.enabled = quality.fxaa;
+        // Render more pixels before displaying the canvas at its CSS size. This
+        // also samples shading and texture detail, unlike coverage-only MSAA.
+        viewer.resolutionScale = quality.scale;
+        const msaa = viewer.scene.msaaSupported
+          ? `${viewer.scene.msaaSamples}× MSAA`
+          : "MSAA unavailable";
+        document.getElementById("aa-status").textContent =
+          `${msaa}${quality.fxaa ? " · FXAA" : ""} · ${quality.scale}× render scale`;
+      }
+      document.getElementById("render-quality").onchange = updateRenderQuality;
+      updateRenderQuality();
+      viewer.clock.shouldAnimate = false;
+      function updateSunTime() {
+        const hours = Number(document.getElementById("sun-time").value);
+        viewer.clock.currentTime = C.JulianDate.addHours(
+          C.JulianDate.fromIso8601("2026-09-30T00:00:00Z"),
+          hours + 4,
+          new C.JulianDate(),
+        );
+        const minutes = Math.round(hours * 60);
+        document.getElementById("time-value").value =
+          `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
+      }
+      document.getElementById("sun-time").oninput = updateSunTime;
+      updateSunTime();
+      document.getElementById("shadows").onchange = (event) => {
+        viewer.shadows = event.target.checked;
+      };
+      viewer.scene.screenSpaceCameraController.enableCollisionDetection = false;
+      const catalog = await (await fetch("/catalog")).json();
+      // The dense cells give a useful close-up of the shared external meshes.
+      catalog.detail = catalog.cells.at(-2);
+      catalog.neighbor = catalog.cells.at(-1);
+      const lightingFrame = C.FixedFrameTransforms.eastNorthUpToFixedFrame(
+        new C.Cartesian3(...catalog.overview.slice(0, 3)),
+      );
+      function updateLight() {
+        const angle = Number(document.getElementById("light-angle").value);
+        const azimuth = C.Math.toRadians(angle);
+        const elevation = C.Math.toRadians(40);
+        const localDirection = new C.Cartesian3(
+          -Math.sin(azimuth) * Math.cos(elevation),
+          -Math.cos(azimuth) * Math.cos(elevation),
+          -Math.sin(elevation),
+        );
+        const intensity = Number(
+          document.getElementById("light-intensity").value,
+        );
+        viewer.scene.light = document.getElementById("sunlight").checked
+          ? new C.SunLight({
+              intensity,
+              color: C.Color.fromCssColorString("#fff1dd"),
+            })
+          : new C.DirectionalLight({
+              direction: C.Matrix4.multiplyByPointAsVector(
+                lightingFrame,
+                localDirection,
+                new C.Cartesian3(),
+              ),
+              intensity,
+            });
+        document.getElementById("light-value").value =
+          viewer.scene.light.intensity.toFixed(1);
+        document.getElementById("angle-value").value = `${angle}°`;
+      }
+      document.getElementById("light-intensity").oninput = updateLight;
+      document.getElementById("sunlight").onchange = updateLight;
+      document.getElementById("light-angle").oninput = () => {
+        document.getElementById("sunlight").checked = false;
+        updateLight();
+      };
+      updateLight();
+      // The matching diffuse coefficients and prefiltered reflection map are
+      // from Cesium's Image Based Lighting Sandcastle example / test fixture.
+      const coefficients = [
+        [1.234897375106812, 1.221635103225708, 1.273374080657959],
+        [1.136140108108521, 1.171419978141785, 1.287894368171692],
+        [1.245410919189453, 1.245791077613831, 1.283067107200623],
+        [1.107124328613281, 1.112697005271912, 1.153419137001038],
+        [1.08641505241394, 1.079904079437256, 1.10212504863739],
+        [1.190043210983276, 1.186099290847778, 1.214627981185913],
+        [0.017783647403121, 0.020140396431088, 0.025317270308733],
+        [1.087014317512512, 1.084779262542725, 1.111417651176453],
+        [-0.052426788955927, -0.048315055668354, -0.041973855346441],
+      ].map((value) => new C.Cartesian3(...value));
+      const imageBasedLighting = new C.ImageBasedLighting({
+        imageBasedLightingFactor: new C.Cartesian2(0.65, 0.65),
+        sphericalHarmonicCoefficients: coefficients,
+        specularEnvironmentMaps: "/environment/kiara_6_afternoon_2k_ibl.ktx2",
+      });
+      const tileset = await C.Cesium3DTileset.fromUrl(
+        "/prestige/tileset.json",
+        {
+          maximumScreenSpaceError: 0.75,
+          dynamicScreenSpaceError: false,
+          foveatedScreenSpaceError: false,
+          skipLevelOfDetail: false,
+          cacheBytes: 256 * 1024 * 1024,
+          maximumCacheOverflowBytes: 256 * 1024 * 1024,
+          environmentMapOptions: { enabled: false },
+          imageBasedLighting,
+          shadows: C.ShadowMode.ENABLED,
+        },
+      );
+      viewer.scene.primitives.add(tileset);
+      document.getElementById("environment").oninput = (event) => {
+        // Positive factors update uniforms without rebuilding every tile shader.
+        const factor = Number(event.target.value);
+        imageBasedLighting.imageBasedLightingFactor = new C.Cartesian2(
+          factor,
+          factor,
+        );
+        document.getElementById("environment-value").value = factor.toFixed(2);
+      };
+      window.addEventListener(
+        "pagehide",
+        () => {
+          viewer.destroy();
+          imageBasedLighting.destroy();
+        },
+        { once: true },
+      );
+      let loaded = 0,
+        unloaded = 0,
+        failures = 0,
+        preset = "overview";
+      const status = document.getElementById("status");
+      tileset.tileLoad.addEventListener(() => loaded++);
+      tileset.tileUnload.addEventListener(() => unloaded++);
+      tileset.tileFailed.addEventListener((error) => {
+        failures++;
+        document.getElementById("errors").textContent =
+          `${failures} loading errors: ${error.message}`;
+        console.error(error.message);
+      });
+      viewer.scene.renderError.addEventListener((scene, error) => {
+        document.getElementById("errors").textContent = error.message;
+        console.error(error);
+      });
+      const scenicViews = {
+        skyline: {
+          target: [-80.005, 40.4425, 280],
+          heading: 102,
+          pitch: -6,
+          range: 2200,
+          title: "Pittsburgh skyline",
+        },
+        pnc: {
+          target: [-80.0058, 40.4469, 225],
+          heading: 305,
+          pitch: -25,
+          range: 750,
+          title: "PNC Park · North Shore",
+        },
+        steelers: {
+          target: [-80.0158, 40.4468, 235],
+          heading: 305,
+          pitch: -25,
+          range: 750,
+          title: "Acrisure Stadium · Pittsburgh Steelers",
+        },
+      };
+      const viewNames = [
+        "overview",
+        "detail",
+        "neighbor",
+        ...Object.keys(scenicViews),
+      ];
+      function view(name) {
+        preset = name;
+        for (const value of viewNames) {
+          document
+            .getElementById(value)
+            .setAttribute("aria-pressed", String(value === name));
+        }
+        status.textContent = "Streaming tiles…";
+        if (scenicViews[name]) {
+          const shot = scenicViews[name];
+          viewer.camera.lookAt(
+            C.Cartesian3.fromDegrees(...shot.target),
+            new C.HeadingPitchRange(
+              C.Math.toRadians(shot.heading),
+              C.Math.toRadians(shot.pitch),
+              shot.range,
+            ),
+          );
+          viewer.camera.lookAtTransform(C.Matrix4.IDENTITY);
+          document.getElementById("shot-caption").firstChild.textContent =
+            shot.title;
+          return;
+        }
+        const sphere =
+          name === "overview"
+            ? catalog.overview
+            : [...catalog[name].center, 130];
+        const offset =
+          name === "overview"
+            ? new C.HeadingPitchRange(0.45, -0.75, 4500)
+            : new C.HeadingPitchRange(0.6, -0.65, 500);
+        viewer.camera.lookAt(new C.Cartesian3(...sphere.slice(0, 3)), offset);
+        viewer.camera.lookAtTransform(C.Matrix4.IDENTITY);
+      }
+      for (const value of viewNames) {
+        document.getElementById(value).onclick = () => view(value);
+      }
+      document.getElementById("clean-view").onclick = () =>
+        document.body.classList.add("presentation");
+      document.getElementById("restore-controls").onclick = () =>
+        document.body.classList.remove("presentation");
+      document.getElementById("bounds").onchange = (event) => {
+        tileset.debugShowBoundingVolume = event.target.checked;
+      };
+      document.getElementById("trim").onclick = () => {
+        tileset.trimLoadedTiles();
+      };
+      let lastUpdate = 0;
+      viewer.scene.postRender.addEventListener(() => {
+        if (performance.now() - lastUpdate < 500) {
+          return;
+        }
+        lastUpdate = performance.now();
+        const iblStatus = document.getElementById("lighting-status");
+        iblStatus.textContent = !viewer.scene.specularEnvironmentMapsSupported
+          ? "Diffuse environment on · reflections unsupported"
+          : imageBasedLighting.specularEnvironmentCubeMap?.ready
+            ? "Diffuse + specular environment ready · HDR"
+            : "Loading reflection environment…";
+        let batches = 0,
+          instances = 0;
+        const levels = [0, 0, 0];
+        for (const tile of tileset._selectedTiles) {
+          const uri = tile._contentResource?.url ?? "";
+          const match = /_lod([012])/.exec(uri);
+          if (match) {
+            levels[Number(match[1])]++;
+          }
+          const model = tile.content?._model;
+          for (const batch of model?.sceneGraph?._externalAssetBatches ?? []) {
+            batches++;
+            instances += batch.members.length;
+          }
+        }
+        const statistics = tileset._statistics;
+        const metrics = [
+          ["Visible tiles", statistics.selected],
+          ["Loaded / released", `${loaded} / ${unloaded}`],
+          ["LOD0 / LOD1 / LOD2", levels.join(" / ")],
+          ["Instanced meshes", instances.toLocaleString()],
+          ["Instance batches", batches.toLocaleString()],
+          ["Draw commands", statistics.numberOfCommands],
+          [
+            "Tile memory",
+            `${(tileset.totalMemoryUsageInBytes / 1024 / 1024).toFixed(1)} MB`,
+          ],
+        ];
+        document.getElementById("metrics").innerHTML = metrics
+          .map(
+            ([name, value]) =>
+              `<span>${name}</span><strong>${value ?? 0}</strong>`,
+          )
+          .join("");
+        if (tileset.tilesLoaded && statistics.numberOfCommands > 0) {
+          status.textContent =
+            preset === "overview"
+              ? "Ready · streamed city overview"
+              : "Ready · instanced external assets";
+        }
+      });
+      view(
+        viewNames.includes(previewOptions.get("view"))
+          ? previewOptions.get("view")
+          : "skyline",
+      );
+    </script>
+  </body>
+</html>

@@ -33,6 +33,8 @@ class GltfJsonLoader extends ResourceLoader {
    * @param {ResourceCache} options.resourceCache The {@link ResourceCache} (to avoid circular dependencies).
    * @param {Resource} options.gltfResource The {@link Resource} containing the glTF.
    * @param {Resource} options.baseResource The {@link Resource} that paths in the glTF JSON are relative to.
+   * @param {Resource} [options.fetchResource=options.gltfResource] The resource to fetch when the cache identity has been scoped for external asset aliases.
+   * @param {Function} [options.resolveUri] An asynchronous URI alias resolver for an external asset. Receives the URI and this JSON loader.
    * @param {Uint8Array} [options.typedArray] The typed array containing the glTF contents.
    * @param {object} [options.gltfJson] The parsed glTF JSON contents.
    * @param {string} [options.cacheKey] The cache key of the resource.
@@ -64,6 +66,10 @@ class GltfJsonLoader extends ResourceLoader {
     this._bufferLoaders = [];
     this._state = ResourceLoaderState.UNLOADED;
     this._promise = undefined;
+    this._fetchResource = options.fetchResource ?? gltfResource;
+    this._resolveUri = options.resolveUri;
+    this._objectUrls = [];
+    this._hasDefaultScene = false;
   }
 
   /**
@@ -131,6 +137,11 @@ class GltfJsonLoader extends ResourceLoader {
     this._bufferLoaders.length = 0;
 
     this._gltf = undefined;
+    for (const url of this._objectUrls) {
+      URL.revokeObjectURL(url);
+    }
+    this._objectUrls.length = 0;
+    this._resolveUri = undefined;
   }
 
   /**
@@ -139,7 +150,7 @@ class GltfJsonLoader extends ResourceLoader {
    * @private
    */
   _fetchGltf() {
-    return this._gltfResource.fetchArrayBuffer();
+    return this._fetchResource.fetchArrayBuffer();
   }
 }
 
@@ -173,7 +184,7 @@ function handleError(gltfJsonLoader, error) {
 async function upgradeVersion(gltfJsonLoader, gltf) {
   if (
     defined(gltf.asset) &&
-    gltf.asset.version === "2.0" &&
+    (gltf.asset.version === "2.0" || gltf.asset.version === "2.1") &&
     !usesExtension(gltf, "KHR_techniques_webgl") &&
     !usesExtension(gltf, "KHR_materials_common")
   ) {
@@ -253,6 +264,14 @@ function loadEmbeddedBuffers(gltfJsonLoader, gltf) {
 
 async function processGltfJson(gltfJsonLoader, gltf) {
   try {
+    gltfJsonLoader._hasDefaultScene = defined(gltf.scene);
+    if (defined(gltfJsonLoader._resolveUri)) {
+      await resolveUris(gltf, gltfJsonLoader, gltfJsonLoader._resolveUri);
+      if (gltfJsonLoader.isDestroyed()) {
+        return;
+      }
+      gltfJsonLoader._resolveUri = undefined;
+    }
     addPipelineExtras(gltf);
 
     await decodeDataUris(gltf);
@@ -262,7 +281,7 @@ async function processGltfJson(gltfJsonLoader, gltf) {
     removePipelineExtras(gltf);
 
     const version = gltf.asset.version;
-    if (version !== "1.0" && version !== "2.0") {
+    if (version !== "1.0" && version !== "2.0" && version !== "2.1") {
       throw new RuntimeError(`Unsupported glTF version: ${version}`);
     }
 
@@ -281,6 +300,22 @@ async function processGltfJson(gltfJsonLoader, gltf) {
 
     handleError(gltfJsonLoader, error);
   }
+}
+
+// Include extension-defined URIs as well as core buffer, image, and file URIs.
+// Extras contain application data, rather than glTF resource references.
+async function resolveUris(object, loader, resolveUri) {
+  if (!defined(object) || typeof object !== "object") {
+    return;
+  }
+  if (typeof object.uri === "string") {
+    object.uri = await resolveUri(object.uri, loader);
+  }
+  await Promise.all(
+    Object.keys(object)
+      .filter((key) => key !== "extras" && key !== "uri")
+      .map((key) => resolveUris(object[key], loader, resolveUri)),
+  );
 }
 
 async function processGltfTypedArray(gltfJsonLoader, typedArray) {

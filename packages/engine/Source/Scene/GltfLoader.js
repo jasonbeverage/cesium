@@ -38,6 +38,7 @@ import VertexAttributeSemantic from "./VertexAttributeSemantic.js";
 import GltfGpmLoader from "./Model/Extensions/Gpm/GltfGpmLoader.js";
 import GltfMeshPrimitiveGpmLoader from "./Model/Extensions/Gpm/GltfMeshPrimitiveGpmLoader.js";
 import getMeshPrimitives from "./getMeshPrimitives.js";
+import GltfExternalAssets from "./GltfExternalAssets.js";
 
 const {
   Attribute,
@@ -288,6 +289,13 @@ class GltfLoader extends ResourceLoader {
 
     // Loaded results
     this._components = undefined;
+    this._externalAssetLoaders = [];
+    this._externalAssetReferences = new Map();
+    this._externalAssetAncestry = options.externalAssetAncestry ?? [];
+    this._fetchResource = options.fetchResource;
+    this._resolveUri = options.resolveUri;
+    this._isExternalAsset = options.isExternalAsset ?? false;
+    this._externalAssetsAttached = false;
   }
 
   /**
@@ -350,7 +358,10 @@ class GltfLoader extends ResourceLoader {
    * @private
    */
   get texturesLoaded() {
-    return this._texturesLoaded;
+    return (
+      this._texturesLoaded &&
+      this._externalAssetLoaders.every((loader) => loader.texturesLoaded)
+    );
   }
 
   /**
@@ -449,6 +460,16 @@ class GltfLoader extends ResourceLoader {
     Check.typeOf.object("frameState", frameState);
     //>>includeEnd('debug');
 
+    let externalAssetsReady = true;
+    try {
+      for (const externalLoader of this._externalAssetLoaders) {
+        externalAssetsReady =
+          externalLoader.process(frameState) && externalAssetsReady;
+      }
+    } catch (error) {
+      handleError(this, error);
+    }
+
     if (
       this._state === GltfLoaderState.LOADED &&
       !defined(this._loadResourcesPromise)
@@ -500,10 +521,20 @@ class GltfLoader extends ResourceLoader {
     }
 
     if (this._incrementallyLoadTextures) {
-      return ready;
+      ready = ready && externalAssetsReady;
+    } else {
+      ready = ready && texturesReady && externalAssetsReady;
     }
 
-    return ready && texturesReady;
+    if (ready && !this._externalAssetsAttached) {
+      try {
+        GltfExternalAssets.attach(this);
+        this._externalAssetsAttached = true;
+      } catch (error) {
+        handleError(this, error);
+      }
+    }
+    return ready;
   }
 
   /**
@@ -519,6 +550,13 @@ class GltfLoader extends ResourceLoader {
    * @private
    */
   unload() {
+    for (const externalLoader of this._externalAssetLoaders) {
+      if (!externalLoader.isDestroyed()) {
+        externalLoader.destroy();
+      }
+    }
+    this._externalAssetLoaders.length = 0;
+    this._externalAssetReferences.clear();
     if (defined(this._gltfJsonLoader) && !this._gltfJsonLoader.isDestroyed()) {
       ResourceCache.unload(this._gltfJsonLoader);
     }
@@ -551,6 +589,8 @@ async function loadGltfJson(loader) {
       baseResource: loader._baseResource,
       typedArray: loader._typedArray,
       gltfJson: loader._gltfJson,
+      fetchResource: loader._fetchResource,
+      resolveUri: loader._resolveUri,
     });
     loader._gltfJsonLoader = gltfJsonLoader;
     await gltfJsonLoader.load();
@@ -560,6 +600,11 @@ async function loadGltfJson(loader) {
       loader.isUnloaded() ||
       gltfJsonLoader.isDestroyed()
     ) {
+      return;
+    }
+
+    await GltfExternalAssets.load(loader, (options) => new GltfLoader(options));
+    if (loader.isDestroyed() || loader.isUnloaded()) {
       return;
     }
 
@@ -2310,6 +2355,11 @@ function loadEdgeVisibility(loader, edgeVisibilityExtension) {
  */
 function loadPrimitive(loader, gltfPrimitive, hasInstances, frameState) {
   const primitive = new Primitive();
+  if (loader._isExternalAsset) {
+    // The cached JSON primitive is a stable identity across child loaders,
+    // including references to the same asset through different parent files.
+    primitive.externalAssetSource = gltfPrimitive;
+  }
   const primitivePlan = new PrimitiveLoadPlan(primitive);
   loader._primitiveLoadPlans.push(primitivePlan);
 
@@ -3154,8 +3204,12 @@ function getSceneNodeIds(gltf) {
   return nodesIds;
 }
 
-function loadScene(gltf, nodes) {
+function loadScene(gltf, nodes, hasDefaultScene) {
   const scene = new Scene();
+  // External assets without a default scene have nothing to instantiate.
+  if (!hasDefaultScene) {
+    return scene;
+  }
   const sceneNodeIds = getSceneNodeIds(gltf);
   scene.nodes = sceneNodeIds.map(function (sceneNodeId) {
     return nodes[sceneNodeId];
@@ -3208,7 +3262,11 @@ function parse(loader, frameState) {
   const skins = loadSkins(loader, nodes);
   const animations = loadAnimations(loader, nodes);
   const articulations = loadArticulations(gltf);
-  const scene = loadScene(gltf, nodes);
+  const scene = loadScene(
+    gltf,
+    nodes,
+    !loader._isExternalAsset || loader._gltfJsonLoader._hasDefaultScene,
+  );
 
   const components = new Components();
   const asset = new Asset();

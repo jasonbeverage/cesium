@@ -286,6 +286,8 @@ ResourceCache.getGltfJsonLoader = function (options) {
     typedArray: typedArray,
     gltfJson: gltfJson,
     cacheKey: cacheKey,
+    fetchResource: options.fetchResource,
+    resolveUri: options.resolveUri,
   });
 
   return ResourceCache.add(gltfJsonLoader);

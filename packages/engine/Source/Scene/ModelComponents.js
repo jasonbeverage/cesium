@@ -555,6 +555,15 @@ export class MorphTarget {
 export class Primitive {
   constructor() {
     /**
+     * The cached glTF primitive that identifies shared external asset geometry
+     * for automatic instancing. Undefined for local primitives.
+     *
+     * @type {object}
+     * @ignore
+     */
+    this.externalAssetSource = undefined;
+
+    /**
      * The vertex attributes, e.g. positions, normals, etc.
      *
      * @type {Attribute[]}
@@ -674,6 +683,13 @@ export class Primitive {
  */
 export class Instances {
   constructor() {
+    /**
+     * Affine transforms for automatically batched external asset meshes.
+     * Preserves shear from composed node transforms without TRS decomposition.
+     * @type {Matrix4[]|undefined}
+     * @ignore
+     */
+    this.transforms = undefined;
     /**
      * The instance attributes, e.g. translation, rotation, scale, feature id, etc.
      *

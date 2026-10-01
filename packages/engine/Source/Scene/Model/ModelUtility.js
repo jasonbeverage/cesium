@@ -216,6 +216,7 @@ const cartesianMinScratch = new Cartesian3();
  * @param {ModelComponents.Primitive} primitive The primitive components.
  * @param {Cartesian3} [instancingTranslationMin] The component-wise minimum value of the instancing translation attribute.
  * @param {Cartesian3} [instancingTranslationMax] The component-wise maximum value of the instancing translation attribute.
+ * @param {Matrix4[]} [instanceTransforms] Affine transforms for external asset instances. When supplied, bounds include rotation, scale, and shear.
  *
  * @returns {object} An object containing the minimum and maximum position values.
  *
@@ -225,6 +226,7 @@ ModelUtility.getPositionMinMax = function (
   primitive,
   instancingTranslationMin,
   instancingTranslationMax,
+  instanceTransforms,
 ) {
   const positionGltfAttribute = ModelUtility.getAttributeBySemantic(
     primitive,
@@ -233,6 +235,31 @@ ModelUtility.getPositionMinMax = function (
 
   let positionMax = positionGltfAttribute.max;
   let positionMin = positionGltfAttribute.min;
+
+  if (defined(instanceTransforms)) {
+    const min = new Cartesian3(
+      Number.MAX_VALUE,
+      Number.MAX_VALUE,
+      Number.MAX_VALUE,
+    );
+    const max = new Cartesian3(
+      -Number.MAX_VALUE,
+      -Number.MAX_VALUE,
+      -Number.MAX_VALUE,
+    );
+    const point = new Cartesian3();
+    for (const transform of instanceTransforms) {
+      for (let corner = 0; corner < 8; corner++) {
+        point.x = corner & 1 ? positionMax.x : positionMin.x;
+        point.y = corner & 2 ? positionMax.y : positionMin.y;
+        point.z = corner & 4 ? positionMax.z : positionMin.z;
+        Matrix4.multiplyByPoint(transform, point, point);
+        Cartesian3.minimumByComponent(min, point, min);
+        Cartesian3.maximumByComponent(max, point, max);
+      }
+    }
+    return { min, max };
+  }
 
   if (defined(instancingTranslationMax) && defined(instancingTranslationMin)) {
     positionMin = Cartesian3.add(

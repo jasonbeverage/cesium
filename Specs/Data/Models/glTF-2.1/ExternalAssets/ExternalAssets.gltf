@@ -1,0 +1,14 @@
+{
+  "asset": { "version": "2.1" },
+  "files": [
+    { "uri": "../../glTF-2.0/BoxTextured/glTF-Binary/BoxTextured.glb", "mimeType": "model/gltf-binary" }
+  ],
+  "externalAssets": [{ "file": 0 }],
+  "nodes": [
+    { "name": "Root", "children": [1, 2] },
+    { "name": "Left", "externalAsset": 0, "translation": [-1, 0, 0] },
+    { "name": "Right", "externalAsset": 0, "translation": [1, 0, 0] }
+  ],
+  "scene": 0,
+  "scenes": [{ "nodes": [0] }]
+}

@@ -30,6 +30,7 @@ import ModelType from "./ModelType.js";
 import NodeRenderResources from "./NodeRenderResources.js";
 import PrimitiveRenderResources from "./PrimitiveRenderResources.js";
 import ModelDrawCommands from "./ModelDrawCommands.js";
+import ModelExternalAssetBatch from "./ModelExternalAssetBatch.js";
 
 /**
  * An in memory representation of the scene graph for a {@link Model}
@@ -313,6 +314,7 @@ function initialize(sceneGraph) {
 
   // Ensure articulations are applied with their initial values to their target nodes.
   sceneGraph.applyArticulations();
+  ModelExternalAssetBatch.create(sceneGraph);
 }
 
 function computeModelMatrix(sceneGraph, modelMatrix) {
@@ -449,6 +451,7 @@ const scratchModelPositionMin = new Cartesian3();
 const scratchModelPositionMax = new Cartesian3();
 const scratchPrimitivePositionMin = new Cartesian3();
 const scratchPrimitivePositionMax = new Cartesian3();
+const scratchInstancePositionMin = new Cartesian3();
 
 /**
  * Generates the {@link ModelDrawCommand} for each primitive in the model.
@@ -485,6 +488,9 @@ ModelSceneGraph.prototype.buildDrawCommands = function (frameState) {
  * @private
  */
 ModelSceneGraph.prototype.buildRenderResources = function (frameState) {
+  if (!ModelExternalAssetBatch.isSupported(this, frameState)) {
+    ModelExternalAssetBatch.restore(this);
+  }
   const model = this._model;
   const modelRenderResources = new ModelRenderResources(model);
 
@@ -551,6 +557,11 @@ ModelSceneGraph.prototype.buildRenderResources = function (frameState) {
     }
   }
   return modelRenderResources;
+};
+
+/** @private */
+ModelSceneGraph.prototype.restoreExternalAssetNodes = function () {
+  ModelExternalAssetBatch.restore(this);
 };
 
 /**
@@ -623,6 +634,22 @@ ModelSceneGraph.prototype.computeBoundingVolumes = function (
         primitiveRenderResources.positionMax,
         scratchPrimitivePositionMax,
       );
+
+      if (defined(runtimeNode.node.instances?.transforms)) {
+        // A mirrored batch has a reflected node transform to correct winding.
+        // Reflection exchanges the transformed minimum and maximum corners.
+        Cartesian3.clone(primitivePositionMin, scratchInstancePositionMin);
+        Cartesian3.minimumByComponent(
+          scratchInstancePositionMin,
+          primitivePositionMax,
+          primitivePositionMin,
+        );
+        Cartesian3.maximumByComponent(
+          scratchInstancePositionMin,
+          primitivePositionMax,
+          primitivePositionMax,
+        );
+      }
 
       Cartesian3.minimumByComponent(
         modelPositionMin,

@@ -66,6 +66,13 @@ InstancingPipelineStage.process = function (renderResources, node, frameState) {
 
   const shaderBuilder = renderResources.shaderBuilder;
   shaderBuilder.addDefine("HAS_INSTANCING");
+  if (defined(instances.transforms)) {
+    shaderBuilder.addDefine(
+      "HAS_INSTANCE_NORMAL_TRANSFORM",
+      undefined,
+      ShaderDestination.VERTEX,
+    );
+  }
   shaderBuilder.addVertexLines(InstancingStageCommon);
 
   const model = renderResources.model;
@@ -503,6 +510,23 @@ const rotationScratch = new Quaternion();
 const scaleScratch = new Cartesian3();
 
 function getInstanceTransformsAsMatrices(instances, count, renderResources) {
+  if (defined(instances.transforms)) {
+    const translations = instances.transforms.map((transform) =>
+      Matrix4.getTranslation(transform, new Cartesian3()),
+    );
+    const runtimeNode = renderResources.runtimeNode;
+    runtimeNode.instancingTranslationMin = translations.reduce(
+      (min, value) => Cartesian3.minimumByComponent(min, value, min),
+      new Cartesian3(Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE),
+    );
+    runtimeNode.instancingTranslationMax = translations.reduce(
+      (max, value) => Cartesian3.maximumByComponent(max, value, max),
+      new Cartesian3(-Number.MAX_VALUE, -Number.MAX_VALUE, -Number.MAX_VALUE),
+    );
+    // The 2D path modifies this array in place, so retain the originals for
+    // bounds and future pipeline rebuilds.
+    return instances.transforms.map((transform) => Matrix4.clone(transform));
+  }
   const transforms = new Array(count);
 
   const translationAttribute = ModelUtility.getAttributeBySemantic(
@@ -705,7 +729,11 @@ function processTransformAttributes(
   );
 
   // Only use matrices for the transforms if the rotation attribute is defined.
-  if (defined(rotationAttribute) || keepTypedArray) {
+  if (
+    defined(instances.transforms) ||
+    defined(rotationAttribute) ||
+    keepTypedArray
+  ) {
     processTransformMatrixAttributes(
       renderResources,
       instances,
@@ -788,6 +816,9 @@ function processTransformMatrixAttributes(
 
   let buffer2D = runtimeNode.instancingTransformsBuffer2D;
   if (!defined(buffer2D)) {
+    transforms =
+      transforms ??
+      getInstanceTransformsAsMatrices(instances, count, renderResources);
     const projectedTransforms = projectTransformsTo2D(
       transforms,
       renderResources,

@@ -73,6 +73,7 @@ Object.defineProperties(ModelNode.prototype, {
       return this._runtimeNode.show;
     },
     set: function (value) {
+      this._model.sceneGraph?.restoreExternalAssetNodes();
       this._runtimeNode.show = value;
     },
   },
@@ -95,6 +96,7 @@ Object.defineProperties(ModelNode.prototype, {
       return this._runtimeNode.transform;
     },
     set: function (value) {
+      this._model.sceneGraph?.restoreExternalAssetNodes();
       if (defined(value)) {
         this._runtimeNode.transform = value;
         this._runtimeNode.userAnimated = true;

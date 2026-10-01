@@ -24,6 +24,7 @@ const updateFunctions = {
   0.8: glTF08to10,
   "1.0": glTF10to20,
   "2.0": undefined,
+  "2.1": undefined,
 };
 
 /**

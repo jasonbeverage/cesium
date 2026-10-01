@@ -27,6 +27,7 @@ import { Cartesian3, Color } from "@cesium/core";
 
 #### Additions :tada:
 
+- Added support for the glTF 2.1 draft external assets (`files`, `externalAssets`, and `node.externalAsset`), including URI aliases and embedded assets. Referenced geometry and textures are shared across models and tiles, and repeated static meshes are automatically rendered with GPU instancing within each model.
 - Added `vectorBlendOption` to `Cesium3DTileset`, for selecting opaque or translucent modes. `blendOption` can now also be changed after construction on `BufferPointCollection`, `BufferPolylineCollection`, and `BufferPolygonCollection`. [#13764](https://github.com/CesiumGS/cesium/issues/13764)
 - Added `.pickObject` getter/setter to BufferPrimitive. [#13811](https://github.com/CesiumGS/cesium/pull/13811)
 - Added batch `.setPositions` method to BufferPrimitiveCollection, improving performance when animating vertex positions on a range of many point, line, or polygon primitives. [#13590](https://github.com/CesiumGS/cesium/issues/13590)
